@@ -1,0 +1,220 @@
+---
+title: "データサイエンス概論１　課題１"
+output:
+  pdf_document: 
+    latex_engine: xelatex
+header-includes: 
+  - \usepackage{bookmark} 
+  - \usepackage{xltxtra} 
+  - \usepackage{zxjatype} 
+  - \usepackage[ipa]{zxjafont} 
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 課題内容
+自分で好きなデータを（e-statなどで）入手し、データ整理、グラフ化、回帰分析（あるいはマッチング分析）を実施する。
+
+今回は、[2019年の世界幸福度調査データ](https://www.kaggle.com/unsdsn/world-happiness?select=2019.csv)を使用した。
+
+
+
+
+データの説明
+
+- Overall.rank：幸福度の順位
+- Score：幸福度の数値
+- GDP.per.capita：一人当たりのGDP
+- Social.support：ソーシャルサポート（困ったときに頼れる人がいるか）
+- Healthy.life.expectancy：健康寿命
+- Freedom.to.make.life.choices：生活の自由度（生活・人生の選択の自由に満足しているか）
+- Generosity：寛容さ（過去1か月に行った寄付額のGDP比率）
+- Perceptions.of.corruption：社会の不正への疑い（政府・企業で不正が広がっていると思うか）
+
+
+### 1. データ(X,Y,Z)の決定
+以下のように設定した。
+
+- 被説明変数Y：Score（幸福度の数値）
+- 説明変数X：GDP.per.capita（一人当たりのGDP）
+- コントロール変数Z：Healthy.life.expectancy（健康寿命）
+
+
+### 2. データの読み込みと加工
+今回は元のデータに欠損値や外れ値が無かったため加工の必要はなかった。
+```{r}
+#データの読み込み
+data <- read.csv("2019.csv")
+```
+
+### 3.XとYそれぞれの記述統計表（基本統計量）を作成し、分布図を描く。
+```{r}
+install.packages("stargazer")
+library(stargazer)
+
+#X,Yの基本統計量の表示
+data2 <- data[, c("Score", "GDP.per.capita")]
+stargazer(data2, type = "text")
+```
+```{r}
+#Yの標準偏差
+sd(data2$Score)
+```
+```{r}
+#Xの標準偏差
+sd(data2$GDP.per.capita)
+```
+
+```{r}
+#Yの分布（ヒストグラム）
+hist(x = data2$Score)
+
+```
+
+```{r}
+#Xの分布（ヒストグラム）
+hist(x = data2$GDP.per.capita)
+```
+
+### 4. XとYの関係についての図を描く。
+```{r}
+library(tidyverse)
+#散布図
+#Score~GDP.per.capita
+ggplot(data, aes(x = GDP.per.capita, y = Score)) +
+  geom_point() +
+  stat_smooth(method = "lm", se =FALSE, colour = "blue") + 
+  xlab("GDP.per.capita") + 
+  ylab("Score") 
+
+```
+
+### 5.単回帰分析と重回帰分析
+
+YをXに回帰した単回帰分析を行う。
+```{r}
+data.lm1 <- lm(formula = Score ~ GDP.per.capita, data = data)
+stargazer(data.lm1,type="text")
+```
+
+係数は2.218、調整済みR2値は0.628。
+
+モデル式の各変数の係数から見ていきます。(Constant)が「3.399」、(GDP.per.capita)が「2.218となっている。つまり、モデル式は、
+(Score) = 2.218 × (GDP.per.capita) + 3.399であることが分かる。
+
+一番下にある　「*P<xx」は、p値と優位表記であり、各変数が、統計的に有意であるかを示したもの。つまり、統計的にどれ程意味があるかを示したものである。
+例えば、有意水準を両側5%とした場合、p値 < 0.05であれば、推定値は統計的に有意といえる。今回の結果では、係数の横に***と表記されているため、優位水準1%で有意といえる。
+
+また、決定係数R2は0.630、自由度調整済み決定係数Adjusted R2は0.628である。決定係数は「回帰モデルが、どれだけ観測データに当てはまっているか？」の精度を示している。0~1の値をとり、１に近いほど良く当てはまっていると言える。（推定値と観測値の差が小さい）しかし、予測の的中率を示すものではないため、注意が必要である。
+決定係数には説明変数が増えるほど、値が大きなってしまう欠点がある。そのため、重回帰分析では自由度修正済み決定係数の値を使用する。回帰モデル同士の優劣を比較する場合にも使用する。
+
+また、F-statisticの統計量の値は、帰無仮説と対立仮説を以下に設定した場合の、F検定の統計量である。帰無仮説は「切片を覗くすべての係数がゼロである」。今回の出力では、自由度は(1,154)。
+
+
+
+続いて、残差の分布を確認してみる。
+
+```{r}
+#残差を確認
+plot(data.lm1, which=1)
+
+```
+
+残差は程よく散らばって分布しているように見える。
+
+Xを対数軸に変更してみる。
+```{r}
+#Xを対数軸に
+data$GDP.per.capita.log <- log(data$GDP.per.capita)
+data$GDP.per.capita.log[which(data$GDP.per.capita.log == -Inf, TRUE)] <- 0
+data.lm1.log <- lm(Score ~ GDP.per.capita.log, data = data)
+stargazer(data.lm1.log, type = "text")
+```
+
+Adjusted R2値は0.484。先ほどの回帰モデルのdえは0,628だったため、今回はXを対数軸にするとモデルの精度が下がってしまうことがわかった。
+
+
+続いて、コントロール変数Zを含めた重回帰分析を行う。
+```{r}
+install.packages("texreg")
+#読み込み
+library(texreg)
+
+#重回帰分析
+#Score~GDP.per.capita + Healthy.life.expectancy
+data.lm2 <- lm(formula = Score ~ GDP.per.capita + Healthy.life.expectancy, data = data)
+#Score~GDP.per.capita + Healthy.life.expectancy + Social.support
+data.lm3 <- lm(formula = Score ~ GDP.per.capita + Healthy.life.expectancy + Social.support, data = data)
+#Score~GDP.per.capita + Healthy.life.expectancy + Social.support + Freedom.to.make.life.choices
+data.lm4 <- lm(formula = Score ~ GDP.per.capita + Healthy.life.expectancy + Social.support + Freedom.to.make.life.choices, data = data)
+#Score~GDP.per.capita + Healthy.life.expectancy + Social.support + Freedom.to.make.life.choices +Generosity
+data.lm5 <- lm(formula = Score ~ GDP.per.capita + Healthy.life.expectancy + Social.support + Freedom.to.make.life.choices + Generosity, data = data)
+#Score~GDP.per.capita + Healthy.life.expectancy + Social.support + Freedom.to.make.life.choices +Generosity + Perceptions.of.corruption
+data.lm6 <- lm(formula = Score ~ GDP.per.capita + Healthy.life.expectancy + Social.support + Freedom.to.make.life.choices + Generosity + Perceptions.of.corruption, data = data)
+
+screenreg(list(data.lm1, data.lm2, data.lm3, data.lm4, data.lm5, data.lm6))
+```
+
+Adj. R^2値から結果を考察していくと、コントロール変数が増えるほどモデルの精度は高くなっているように見えるものの、Model5以降はその殆どAdj. R^2値は変化していない。コントロール変数を増やすほど精度が高くなるわけではないことがわかる。
+
+また、最終的にすべての変数をコントロール変数として重回帰分析を行ったModel6の係数から考察すると、回帰式は
+
+(Score) = 0.78x(GDP.per.capita ) + 1.08x(Healthy.life.expectancy) + 1.12x(Social.support) + 1.45x(Freedom.to.make.life.choices) + 0.49x(Generosity) + 0.97x(Perceptions.of.corruption)
+
+であり、それぞれの値が等倍したときにスコアに与える影響が最も大きいのは（Freedom.to.make.life.choices）であり、逆に最も少ないのは（Generosity）であることがわかった。
+
+また、（Generosity）（Perceptions.of.corruption ）の係数は優位水準5%で有意とは言えないことがわかる。
+
+
+続いて、ロバスト標準誤差による推定を行う。
+
+```{r}
+#ロバスト標準誤差による推定
+install.packages("estimatr")
+
+# パッケージの読み込み
+library("estimatr")
+
+# ロバスト標準誤差を用いたOLS推定
+data.lm_robust1 <- lm_robust(formula = Score ~ GDP.per.capita, 
+                           data = data, se_type = "HC1")
+data.lm_robust2 <- lm_robust(formula = Score ~ GDP.per.capita + Healthy.life.expectancy, 
+                            data = data, se_type = "HC1")
+data.lm_robust3 <- lm_robust(formula = Score ~ GDP.per.capita + Healthy.life.expectancy + 
+                               Social.support, data = data, se_type = "HC1")
+data.lm_robust4 <- lm_robust(formula = Score ~ GDP.per.capita + Healthy.life.expectancy + 
+                               Social.support + Freedom.to.make.life.choices, data = data,
+                             se_type = "HC1")
+data.lm_robust5 <- lm_robust(formula = Score ~ GDP.per.capita + Healthy.life.expectancy + 
+                               Social.support + Freedom.to.make.life.choices + Generosity,
+                             data = data, se_type = "HC1")
+data.lm_robust6 <- lm_robust(formula = Score ~ GDP.per.capita + Healthy.life.expectancy + 
+                               Social.support + Freedom.to.make.life.choices + Generosity + 
+                               Perceptions.of.corruption, data = data, se_type = "HC1")
+
+
+#結果表の出力
+screenreg(list(data.lm_robust1, data.lm_robust2, data.lm_robust3, data.lm_robust4, data.lm_robust5, data.lm_robust6))
+
+```
+
+lmによるOLS推定における標準誤差は、誤差項の分散が均一（均一分散）であると仮定している。しかし、実際の計量経済分析において均一分散の仮定が満たされていると想定できるケースはまれであり、通常は、不均一分散に対して頑健な標準誤差(ロバスト標準誤差, heteroskedasticity robust standard error)を用いる。
+RMSE(Root Mean Squared Error)は、平均誤差の平方根であり、0に近いほど見積もられる予測誤差が小さい、すなわち予測精度が高いことを表す。
+
+
+
+最後に、変数間の散布図、相関行列図を比較できる{psych}パッケージを使って考察してみる。
+```{r}
+install.packages("psych")
+library(psych)
+data <- read.csv("2019.csv")
+psych::pairs.panels(data)
+```
+
+Scoreと線形な相関関係がありそうなのは、GDP.per.capita, Healthy.life.expectancy, Social.support, Freedom.to.make.life.choices
+だが、
+一方でGenerosity, Perceptions.of.corruptionは非線形な関係がありそうなので、多次元項をモデルに含めてみると精度が向上するかもしれない。
+
